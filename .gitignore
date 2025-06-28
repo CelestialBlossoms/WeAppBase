@@ -9,7 +9,7 @@ __pycache__/
 *.so
 
 # distribution / packaging
-tests
+
 .Python
 build/
 develop-eggs/
