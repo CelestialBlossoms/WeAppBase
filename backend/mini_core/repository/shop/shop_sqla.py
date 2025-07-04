@@ -104,7 +104,7 @@ class ShopProductSQLARepository(SQLARepository):
 
     @property
     def query_params(self) -> Tuple:
-        return 'status', 'type','category_id','name', 'code',
+        return 'status', 'type','category_id','name', 'code',"is_recommended"
 
     # @property
     # def fuzzy_query_params(self) -> Tuple:
