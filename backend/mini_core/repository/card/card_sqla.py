@@ -17,14 +17,14 @@ card_table = Table(
     id_column(),
     Column('user_id', String(64), comment='用户编号'),
     Column('name', String(255), comment='用户名称'),
-    Column('openid', Integer,  comment='微信ID'),
+    Column('openid', String(255),  comment='微信ID'),
+    Column('store_id', Integer, comment='门店id'),
     Column('phone', String(255), comment='电话'),
     Column('weixing', String(255), comment='微信'),
     Column('position', String(255), comment='职位'),
     Column('company', String(255), comment='公司'),
     Column('creator', String(255), comment='创建人'),
     Column('image_url', String(255), comment='图片路由'),
-
     Column('create_time', DateTime, default=dt.datetime.now),
     Column('update_time', DateTime, default=dt.datetime.now, onupdate=dt.datetime.now),
 )

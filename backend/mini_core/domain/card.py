@@ -62,5 +62,9 @@ class Card(Entity):
             description='图片路由',
         ),
     )
-
-
+    store_id: int = field(
+        default=None,
+        metadata=dict(
+            description='门店ID',
+        ),
+    )
