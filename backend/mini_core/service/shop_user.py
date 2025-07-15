@@ -125,7 +125,11 @@ class ShopUserService(CRUDService[ShopUser]):
 
     def find(self, **kwargs):
         return self._repo.find(**kwargs)
-
+    #查询t_shop_user表中的status=1的用户总数
+    def get_total_users(self):
+        # 返回用户总数量
+        users = self._repo.find_all(status=1)
+        return len(users)
     def create(self, user: ShopUser) -> Entity:
         """创建商城用户"""
         # 生成用户编号
