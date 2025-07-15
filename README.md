@@ -18,6 +18,7 @@
 - 🔐 **权限管理** - 基于RBAC的角色权限控制
 - 📦 **物流管理** - 订单跟踪、物流信息、配送状态
 - 🎫 **会员系统** - 等级管理、积分体系、优惠券
+- 📈 **行为分析** - 用户行为追踪、转化漏斗分析、个性化推荐
 
 ## 技术栈
 
@@ -62,6 +63,12 @@ mini_code/
 │   │   ├── repository/       # 数据访问层
 │   │   ├── service/          # 业务逻辑层
 │   │   └── schema/           # 数据验证模式
+│   ├── behavior_analysis/     # 行为分析模块
+│   │   ├── api/              # 行为分析API
+│   │   ├── domain/           # 行为分析领域模型
+│   │   ├── repository/       # 行为数据存储
+│   │   ├── service/          # 行为分析服务
+│   │   └── schema/           # 行为数据验证
 │   ├── role/                  # 角色权限管理
 │   └── user/                  # 用户管理
 ├── kit/                       # 工具库
@@ -128,6 +135,50 @@ mini_code/
 - 菜单权限配置
 - API接口权限验证
 
+### 9. 行为分析系统 🆕
+- **用户行为追踪** - 页面访问、点击事件、停留时长
+- **转化漏斗分析** - 用户路径分析、转化率统计
+- **商品行为分析** - 商品浏览、收藏、加购、购买行为
+- **用户画像分析** - 用户偏好、消费习惯、活跃度分析
+- **实时数据监控** - 实时用户行为数据展示
+- **数据可视化** - 图表展示、趋势分析、对比分析
+- **个性化推荐** - 基于用户行为的商品推荐
+
+## 行为分析模块详细说明
+
+### 功能特性
+1. **数据采集**
+   - 前端自动埋点收集用户行为数据
+   - 支持自定义事件追踪
+   - 实时数据上传和批量处理
+
+2. **数据分析**
+   - 用户行为路径分析
+   - 转化漏斗分析
+   - 商品热度分析
+   - 用户留存分析
+
+3. **数据展示**
+   - 实时数据大屏
+   - 多维度图表展示
+   - 自定义报表生成
+   - 数据导出功能
+
+### API接口
+- `POST /api/v1/behavior/track` - 行为数据上报
+- `GET /api/v1/behavior/overview` - 行为概览数据
+- `GET /api/v1/behavior/funnel` - 转化漏斗分析
+- `GET /api/v1/behavior/user-path` - 用户路径分析
+- `GET /api/v1/behavior/product-analysis` - 商品行为分析
+- `GET /api/v1/behavior/user-portrait` - 用户画像分析
+
+### 数据库设计
+- `t_user_behavior` - 用户行为记录表
+- `t_behavior_event` - 行为事件定义表
+- `t_behavior_session` - 用户会话表
+- `t_behavior_funnel` - 转化漏斗配置表
+- `t_behavior_analysis` - 行为分析结果表
+
 ## 安装部署
 
 ### 环境要求
@@ -187,6 +238,11 @@ WECHAT_MULTIPLATFORM_SECRET=your_wechat_secret
 
 # JWT配置
 JWT_SECRET_KEY=your_jwt_secret_key
+
+# 行为分析配置
+BEHAVIOR_ANALYSIS_ENABLED=true
+BEHAVIOR_DATA_RETENTION_DAYS=90
+BEHAVIOR_REAL_TIME_ENABLED=true
 ```
 
 ### 数据库初始化
@@ -198,224 +254,113 @@ flask db init
 # 生成迁移文件
 flask db migrate -m "Initial migration"
 
-# 应用迁移
+# 执行迁移
 flask db upgrade
 ```
 
-### 运行应用
+## 使用指南
 
-#### 开发环境
+### 行为分析模块使用
 
-```bash
-# 直接运行
-python run.py
+#### 1. 前端数据上报
+```javascript
+// 页面访问事件
+wx.request({
+  url: '/api/v1/behavior/track',
+  method: 'POST',
+  data: {
+    event_type: 'page_view',
+    page_path: '/pages/product/detail',
+    product_id: 123,
+    user_id: 'user_123',
+    session_id: 'session_456',
+    timestamp: Date.now(),
+    properties: {
+      stay_duration: 30000,
+      scroll_depth: 0.8
+    }
+  }
+});
 
-# 或使用Flask命令
-flask run --host=127.0.0.1 --port=5555 --debug
+// 点击事件
+wx.request({
+  url: '/api/v1/behavior/track',
+  method: 'POST',
+  data: {
+    event_type: 'click',
+    element_id: 'add_to_cart_btn',
+    product_id: 123,
+    user_id: 'user_123',
+    session_id: 'session_456',
+    timestamp: Date.now()
+  }
+});
 ```
 
-#### 生产环境
-
+#### 2. 数据分析查询
 ```bash
-# 使用Gunicorn
-gunicorn autoapp:app \
-    --bind 0.0.0.0:5000 \
-    -w 8 \
-    -k eventlet \
-    --access-logfile - \
-    --error-logfile -
+# 获取行为概览
+curl -X GET "http://localhost:5000/api/v1/behavior/overview?date_range=7d"
+
+# 获取转化漏斗
+curl -X GET "http://localhost:5000/api/v1/behavior/funnel?funnel_id=product_purchase"
+
+# 获取用户路径分析
+curl -X GET "http://localhost:5000/api/v1/behavior/user-path?user_id=123"
 ```
 
-### Docker部署
-
-#### 构建镜像
-
-```bash
-# 开发环境
-docker build -f Dockerfile.dev -t mini_app_bac:dev .
-
-# 生产环境
-docker build -f Dockerfile -t mini_app_bac:latest .
-```
-
-#### 使用Docker Compose
-
-```bash
-# 启动所有服务
-docker-compose up -d
-
-# 查看服务状态
-docker-compose ps
-
-# 查看日志
-docker-compose logs -f web
-```
-
-### Celery异步任务
-
-启动Celery Worker：
-
-```bash
-# 开发环境
-celery -A celery_worker.celery worker -l info
-
-# 生产环境（使用eventlet）
-celery -A celery_worker.celery worker -l info -P eventlet
-```
-
-启动Flower监控（可选）：
-
-```bash
-celery -A celery_worker.celery flower
-```
-
-## API文档
-
-应用启动后，可以通过以下地址访问API文档：
-
-- **Swagger UI**: http://localhost:5000/swagger-ui
-- **ReDoc**: http://localhost:5000/redoc
-- **RapiDoc**: http://localhost:5000/rapidoc
-
-## 配置说明
-
-### 微信小程序配置
-
-1. 在微信公众平台配置小程序信息
-2. 获取AppID和AppSecret
-3. 配置服务器域名和业务域名
-4. 设置支付商户号和API密钥
-
-### 支付配置
-
-1. 申请微信支付商户号
-2. 下载API证书文件到 `wxcert/` 目录
-3. 配置支付回调URL
-4. 设置支付密钥
-
-### 物流配置
-
-1. 申请顺丰速运API权限
-2. 配置物流公司信息
-3. 设置物流回调接口
-
-## 开发指南
+## 开发规范
 
 ### 代码规范
+- 遵循PEP 8 Python代码规范
+- 使用类型注解
+- 编写完整的文档字符串
+- 单元测试覆盖率不低于80%
 
-项目使用以下代码规范工具：
+### 数据库规范
+- 使用下划线命名法
+- 所有表名以`t_`开头
+- 字段名使用下划线分隔
+- 必须包含创建时间和更新时间字段
 
-- **Black** - 代码格式化
-- **isort** - 导入排序
-- **MyPy** - 类型检查
-
-运行代码检查：
-
-```bash
-# 格式化代码
-black .
-
-# 排序导入
-isort .
-
-# 类型检查
-mypy .
-```
-
-### 测试
-
-运行测试用例：
-
-```bash
-# 运行所有测试
-pytest
-
-# 运行测试并生成覆盖率报告
-pytest --cov=backend --cov-report=html
-```
-
-### 数据库迁移
-
-```bash
-# 生成迁移文件
-flask db migrate -m "描述信息"
-
-# 应用迁移
-flask db upgrade
-
-# 回滚迁移
-flask db downgrade
-```
-
-## 监控与日志
-
-### 日志配置
-
-系统使用Loguru进行日志管理，日志文件位于 `logs/` 目录：
-
-- 应用日志：`logs/app.log`
-- 微信支付日志：`wechatpay.log`
-- 错误日志：`logs/error.log`
-
-### 性能监控
-
-集成Apache SkyWalking进行应用性能监控：
-
-1. 配置SkyWalking Agent
-2. 设置监控指标
-3. 查看性能报告
-
-## 故障排除
-
-### 常见问题
-
-1. **数据库连接失败**
-   - 检查数据库配置
-   - 确认数据库服务是否启动
-
-2. **微信支付失败**
-   - 检查证书文件路径
-   - 验证商户号配置
-   - 确认回调URL设置
-
-3. **Celery任务失败**
-   - 检查Redis连接
-   - 查看Celery Worker日志
-   - 确认任务队列配置
-
-### 日志查看
-
-```bash
-# 查看应用日志
-tail -f logs/app.log
-
-# 查看Docker容器日志
-docker-compose logs -f web
-
-# 查看Celery日志
-docker-compose logs -f celery_worker
-```
+### API规范
+- 使用RESTful API设计
+- 统一响应格式
+- 完整的错误处理
+- API版本控制
 
 ## 贡献指南
 
-1. Fork 项目仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
 3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+5. 打开 Pull Request
 
+## 许可证
 
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+
+## 联系方式
+
+- 项目维护者: [Your Name]
+- 邮箱: [your.email@example.com]
+- 项目地址: [https://github.com/your-username/wx_app_backend]
 
 ## 更新日志
 
-### v1.0.0 (当前版本)
-- 初始版本发布
-- 基础电商功能实现
-- 微信小程序集成
-- 分销系统上线
-- Docker部署支持
+### v2.0.0 (2024-01-XX)
+- ✨ 新增行为分析模块
+- 📊 新增用户行为追踪功能
+- 📈 新增转化漏斗分析
+- 🎯 新增个性化推荐系统
+- 🔧 优化数据库性能
+- 🐛 修复已知问题
 
----
-
-**注意**: 本项目正在积极开发中，功能和API可能会发生变化。生产环境使用前请进行充分测试。
+### v1.0.0 (2023-XX-XX)
+- 🎉 初始版本发布
+- ✅ 基础电商功能
+- ✅ 微信小程序集成
+- ✅ 分销系统
+- ✅ 权限管理
 
