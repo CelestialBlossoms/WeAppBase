@@ -68,7 +68,7 @@ def register_api_blueprints(app):
     app.app_context().push()
     from backend.alarm.api import alarm_v1_blp
     from backend.business.api import business_v1_blp
-
+    from backend.behavior_analysis.api import behavior_v1_blp
     from backend.log.api import log_v1_blp
     from backend.role.api import role_v1_blp
     from backend.mini_core.api import mini_core_v1_blp,mini_wx_app_v1_blp
@@ -76,7 +76,7 @@ def register_api_blueprints(app):
     from backend.license_management.api import license_v1_blp
 
     blueprints = [ alarm_v1_blp, user_v1_blp, department_v1_blp,permissions_v1_blp,
-         role_v1_blp, business_v1_blp, log_v1_blp, license_v1_blp,mini_core_v1_blp,mini_wx_app_v1_blp
+         role_v1_blp, business_v1_blp, behavior_v1_blp, log_v1_blp, license_v1_blp,mini_core_v1_blp,mini_wx_app_v1_blp
     ]
     for blueprint in blueprints:
         api.register_blueprint(blueprint)
