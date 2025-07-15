@@ -11,7 +11,7 @@ from backend.behavior_analysis.repository.behavior_sqla import UserBehaviorSQLAR
 
 class BehaviorService(CRUDService[UserBehavior]):
     """行为数据服务"""
-    
+
     def __init__(self, repo: UserBehaviorSQLARepository):
         super().__init__(repo)
         self._repo = repo
@@ -23,7 +23,7 @@ class BehaviorService(CRUDService[UserBehavior]):
             ip_address = None
             if hasattr(g, 'ip'):
                 ip_address = g.ip
-            
+
             # 获取用户代理
             user_agent = None
             if hasattr(g, 'request'):
@@ -32,6 +32,7 @@ class BehaviorService(CRUDService[UserBehavior]):
             # 创建行为记录
             behavior = UserBehavior(
                 user_id=event_data.get('user_id'),
+                agent_id=event_data.get('agent_id'),
                 session_id=event_data.get('session_id'),
                 event_type=event_data.get('event_type'),
                 event_name=event_data.get('event_name'),
@@ -49,7 +50,7 @@ class BehaviorService(CRUDService[UserBehavior]):
 
             # 保存到数据库
             result = self.create(behavior)
-            
+
             return {
                 'code': 200,
                 'message': '数据上报成功',
@@ -57,7 +58,7 @@ class BehaviorService(CRUDService[UserBehavior]):
                     'track_id': result.id
                 }
             }
-            
+
         except Exception as e:
             return {
                 'code': 500,
@@ -65,10 +66,10 @@ class BehaviorService(CRUDService[UserBehavior]):
                 'data': None
             }
 
-    def get_overview_data(self, date_range: str, user_id: str = None) -> dict:
+    def get_overview_data(self, date_range: str, user_id: str = None, agent_id: str = None) -> dict:
         """获取概览数据"""
         try:
-            data = self._repo.get_overview_data(date_range, user_id)
+            data = self._repo.get_overview_data(date_range, user_id, agent_id)
             return {
                 'code': 200,
                 'data': data
@@ -80,22 +81,24 @@ class BehaviorService(CRUDService[UserBehavior]):
                 'data': None
             }
 
-    def get_funnel_analysis(self, funnel_id: str, date_range: str) -> dict:
+    def get_funnel_analysis(self, funnel_id: str, date_range: str, agent_id: str = None) -> dict:
         """获取漏斗分析"""
         try:
             # 这里应该从配置中获取漏斗定义
             # 暂时使用硬编码的漏斗配置
-            funnel_config = {
-                'funnel_name': '商品购买漏斗',
-                'steps': [
-                    {'event_type': 'product_view', 'step_name': '商品浏览'},
-                    {'event_type': 'add_to_cart', 'step_name': '加入购物车'},
-                    {'event_type': 'order_create', 'step_name': '创建订单'},
-                    {'event_type': 'order_pay', 'step_name': '完成支付'}
-                ]
-            }
-            
-            data = self._repo.get_funnel_data(funnel_config, date_range)
+            # funnel_config = {
+            #     'funnel_name': '商品购买漏斗',
+            #     'steps': [
+            #         {'event_type': 'product_view', 'step_name': '商品浏览'},
+            #         {'event_type': 'add_to_cart', 'step_name': '加入购物车'},
+            #         {'event_type': 'order_create', 'step_name': '创建订单'},
+            #         {'event_type': 'order_pay', 'step_name': '完成支付'}
+            #     ]
+            # }
+            # 从数据库中获取漏斗配置
+            funnel_config = self._repo.get_funnel_config(funnel_id)
+
+            data = self._repo.get_funnel_data(funnel_config, date_range, agent_id)
             return {
                 'code': 200,
                 'data': data
@@ -142,19 +145,19 @@ class BehaviorService(CRUDService[UserBehavior]):
         try:
             # 获取用户基本信息
             basic_info = self._get_user_basic_info(user_id)
-            
+
             # 获取行为模式
             behavior_patterns = self._get_user_behavior_patterns(user_id)
-            
+
             # 获取商品偏好
             product_preferences = self._get_user_product_preferences(user_id)
-            
+
             # 获取购买行为
             purchase_behavior = self._get_user_purchase_behavior(user_id)
-            
+
             # 计算活跃度等级
             engagement_level = self._calculate_engagement_level(user_id)
-            
+
             data = {
                 'user_id': user_id,
                 'basic_info': basic_info,
@@ -163,7 +166,7 @@ class BehaviorService(CRUDService[UserBehavior]):
                 'purchase_behavior': purchase_behavior,
                 'engagement_level': engagement_level
             }
-            
+
             return {
                 'code': 200,
                 'data': data
@@ -222,4 +225,4 @@ class BehaviorService(CRUDService[UserBehavior]):
         """计算用户活跃度等级"""
         # 这里应该根据用户行为计算活跃度
         # 暂时返回模拟数据
-        return '高活跃用户' 
+        return '高活跃用户'

@@ -6,11 +6,12 @@ from typing import Dict, Any, Optional
 
 class BehaviorTrackSchema(Schema):
     """行为数据上报验证模式"""
-    
+
     event_type = fields.Str(required=True, validate=validate.Length(min=1, max=50))
     event_name = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     session_id = fields.Str(required=True, validate=validate.Length(min=1, max=64))
     user_id = fields.Str(required=True, validate=validate.Length(min=1, max=64))
+    agent_id = fields.Str(validate=validate.Length(min=0, max=64))
     page_path = fields.Str(validate=validate.Length(max=200))
     element_id = fields.Str(validate=validate.Length(max=100))
     product_id = fields.Int()
@@ -23,42 +24,43 @@ class BehaviorTrackSchema(Schema):
 
 class BehaviorOverviewQuerySchema(Schema):
     """行为概览查询参数验证模式"""
-    
+
     date_range = fields.Str(required=True, validate=validate.OneOf(['1d', '7d', '30d', '90d']))
     user_id = fields.Str(validate=validate.Length(max=64))
 
 
 class BehaviorFunnelQuerySchema(Schema):
     """漏斗分析查询参数验证模式"""
-    
+
     funnel_id = fields.Str(required=True, validate=validate.Length(min=1, max=50))
     date_range = fields.Str(required=True, validate=validate.OneOf(['1d', '7d', '30d', '90d']))
+    agent_id = fields.Str(validate=validate.Length(min=0, max=64))
 
 
 class BehaviorUserPathQuerySchema(Schema):
     """用户路径分析查询参数验证模式"""
-    
+
     user_id = fields.Str(required=True, validate=validate.Length(min=1, max=64))
     date_range = fields.Str(required=True, validate=validate.OneOf(['1d', '7d', '30d', '90d']))
 
 
 class BehaviorProductAnalysisQuerySchema(Schema):
     """商品行为分析查询参数验证模式"""
-    
+
     product_id = fields.Int(required=True)
     date_range = fields.Str(required=True, validate=validate.OneOf(['1d', '7d', '30d', '90d']))
 
 
 class BehaviorUserPortraitQuerySchema(Schema):
     """用户画像分析查询参数验证模式"""
-    
+
     user_id = fields.Str(required=True, validate=validate.Length(min=1, max=64))
 
 
 # 响应模式
 class BehaviorOverviewResponseSchema(Schema):
     """行为概览响应模式"""
-    
+
     total_users = fields.Int()
     active_users = fields.Int()
     total_sessions = fields.Int()
@@ -71,7 +73,7 @@ class BehaviorOverviewResponseSchema(Schema):
 
 class BehaviorFunnelResponseSchema(Schema):
     """漏斗分析响应模式"""
-    
+
     funnel_name = fields.Str()
     steps = fields.List(fields.Dict())
     total_conversion_rate = fields.Float()
@@ -79,7 +81,7 @@ class BehaviorFunnelResponseSchema(Schema):
 
 class BehaviorUserPathResponseSchema(Schema):
     """用户路径分析响应模式"""
-    
+
     user_id = fields.Str()
     paths = fields.List(fields.Dict())
     avg_path_length = fields.Float()
@@ -89,7 +91,7 @@ class BehaviorUserPathResponseSchema(Schema):
 
 class BehaviorProductAnalysisResponseSchema(Schema):
     """商品行为分析响应模式"""
-    
+
     product_id = fields.Int()
     product_name = fields.Str()
     views = fields.Int()
@@ -104,10 +106,10 @@ class BehaviorProductAnalysisResponseSchema(Schema):
 
 class BehaviorUserPortraitResponseSchema(Schema):
     """用户画像分析响应模式"""
-    
+
     user_id = fields.Str()
     basic_info = fields.Dict()
     behavior_patterns = fields.Dict()
     product_preferences = fields.Dict()
     purchase_behavior = fields.Dict()
-    engagement_level = fields.Str() 
+    engagement_level = fields.Str()

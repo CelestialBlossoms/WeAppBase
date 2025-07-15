@@ -13,19 +13,19 @@ from backend.behavior_analysis.schema import (
 )
 from kit.util.blueprint import APIBlueprint
 
-blp = APIBlueprint('behavior', 'behavior', url_prefix='/api/v1/behavior')
+blp = APIBlueprint('behavior', 'behavior', url_prefix='/')
 
 
 @blp.route('/track')
 class BehaviorTrackAPI(MethodView):
     """行为数据上报API"""
-    
+
     @blp.arguments(BehaviorTrackSchema)
     def post(self, args: dict):
         """上报用户行为数据"""
         from backend.behavior_analysis.repository import user_behavior_sqla_repo
         from backend.behavior_analysis.service import BehaviorService
-        
+
         service = BehaviorService(user_behavior_sqla_repo)
         return service.track_event(args)
 
@@ -34,13 +34,13 @@ class BehaviorTrackAPI(MethodView):
 class BehaviorOverviewAPI(MethodView):
     """行为概览API"""
     decorators = [auth_required()]
-    
+
     @blp.arguments(BehaviorOverviewQuerySchema, location='query')
     def get(self, args: dict):
         """获取行为概览数据"""
         from backend.behavior_analysis.repository import user_behavior_sqla_repo
         from backend.behavior_analysis.service import BehaviorService
-        
+
         service = BehaviorService(user_behavior_sqla_repo)
         return service.get_overview_data(
             date_range=args.get('date_range', '7d'),
@@ -52,17 +52,18 @@ class BehaviorOverviewAPI(MethodView):
 class BehaviorFunnelAPI(MethodView):
     """漏斗分析API"""
     decorators = [auth_required()]
-    
+
     @blp.arguments(BehaviorFunnelQuerySchema, location='query')
     def get(self, args: dict):
         """获取漏斗分析数据"""
         from backend.behavior_analysis.repository import user_behavior_sqla_repo
         from backend.behavior_analysis.service import BehaviorService
-        
+
         service = BehaviorService(user_behavior_sqla_repo)
         return service.get_funnel_analysis(
             funnel_id=args.get('funnel_id', ''),
-            date_range=args.get('date_range', '7d')
+            date_range=args.get('date_range', '7d'),
+            agent_id=args.get('agent_id', ''),
         )
 
 
@@ -70,13 +71,13 @@ class BehaviorFunnelAPI(MethodView):
 class BehaviorUserPathAPI(MethodView):
     """用户路径分析API"""
     decorators = [auth_required()]
-    
+
     @blp.arguments(BehaviorUserPathQuerySchema, location='query')
     def get(self, args: dict):
         """获取用户路径分析数据"""
         from backend.behavior_analysis.repository import user_behavior_sqla_repo
         from backend.behavior_analysis.service import BehaviorService
-        
+
         service = BehaviorService(user_behavior_sqla_repo)
         return service.get_user_path_analysis(
             user_id=args.get('user_id', ''),
@@ -88,13 +89,13 @@ class BehaviorUserPathAPI(MethodView):
 class BehaviorProductAnalysisAPI(MethodView):
     """商品行为分析API"""
     decorators = [auth_required()]
-    
+
     @blp.arguments(BehaviorProductAnalysisQuerySchema, location='query')
     def get(self, args: dict):
         """获取商品行为分析数据"""
         from backend.behavior_analysis.repository import user_behavior_sqla_repo
         from backend.behavior_analysis.service import BehaviorService
-        
+
         service = BehaviorService(user_behavior_sqla_repo)
         return service.get_product_analysis(
             product_id=args.get('product_id', 0),
@@ -106,12 +107,12 @@ class BehaviorProductAnalysisAPI(MethodView):
 class BehaviorUserPortraitAPI(MethodView):
     """用户画像分析API"""
     decorators = [auth_required()]
-    
+
     @blp.arguments(BehaviorUserPortraitQuerySchema, location='query')
     def get(self, args: dict):
         """获取用户画像分析数据"""
         from backend.behavior_analysis.repository import user_behavior_sqla_repo
         from backend.behavior_analysis.service import BehaviorService
-        
+
         service = BehaviorService(user_behavior_sqla_repo)
-        return service.get_user_portrait(user_id=args.get('user_id', '')) 
+        return service.get_user_portrait(user_id=args.get('user_id', ''))

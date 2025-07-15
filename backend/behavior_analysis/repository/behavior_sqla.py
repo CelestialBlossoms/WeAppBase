@@ -6,17 +6,17 @@ from typing import List, Dict, Any, Optional, Type, Tuple
 from sqlalchemy import Column, String, Integer, DateTime, BigInteger, Text, JSON, func, and_, desc
 from sqlalchemy import event
 from sqlalchemy import Table
-
 from backend.extensions import mapper_registry
 from backend.behavior_analysis.domain.behavior import (
     UserBehavior, BehaviorEvent, BehaviorSession, BehaviorFunnel, BehaviorAnalysis
 )
+from backend.mini_core.service import shop_user_service
 from kit.repository.sqla import SQLARepository
 from kit.util.sqla import id_column
 
 __all__ = [
     'UserBehaviorSQLARepository',
-    'BehaviorEventSQLARepository', 
+    'BehaviorEventSQLARepository',
     'BehaviorSessionSQLARepository',
     'BehaviorFunnelSQLARepository',
     'BehaviorAnalysisSQLARepository'
@@ -28,6 +28,7 @@ user_behavior_table = Table(
     mapper_registry.metadata,
     id_column(),
     Column('user_id', String(64), nullable=False, index=True, comment='用户ID'),
+    Column('agent_id', String(64), nullable=False, index=True, comment='推荐人ID'),
     Column('session_id', String(64), nullable=False, index=True, comment='会话ID'),
     Column('event_type', String(50), nullable=False, index=True, comment='事件类型'),
     Column('event_name', String(100), nullable=False, comment='事件名称'),
@@ -116,7 +117,7 @@ mapper_registry.map_imperatively(BehaviorAnalysis, behavior_analysis_table)
 
 class UserBehaviorSQLARepository(SQLARepository):
     """用户行为记录仓储"""
-    
+
     @property
     def model(self) -> Type[UserBehavior]:
         return UserBehavior
@@ -129,7 +130,7 @@ class UserBehaviorSQLARepository(SQLARepository):
     def range_query_params(self) -> Tuple:
         return 'timestamp', 'create_time'
 
-    def get_overview_data(self, date_range: str, user_id: str = None) -> Dict[str, Any]:
+    def get_overview_data(self, date_range: str, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> Dict[str, Any]:
         """获取概览数据"""
         # 计算时间范围
         end_time = dt.datetime.now()
@@ -149,20 +150,19 @@ class UserBehaviorSQLARepository(SQLARepository):
             UserBehavior.create_time >= start_time,
             UserBehavior.create_time <= end_time
         ]
-        
+
         if user_id:
             conditions.append(UserBehavior.user_id == user_id)
-
+        if agent_id:
+            conditions.append(UserBehavior.agent_id == agent_id)
         # 基础统计
         total_events = self.session.query(func.count(UserBehavior.id)).filter(
             and_(*conditions)
         ).scalar() or 0
 
         # 用户统计
-        total_users = self.session.query(func.count(func.distinct(UserBehavior.user_id))).filter(
-            and_(*conditions)
-        ).scalar() or 0
-
+        total_users = shop_user_service.get_total_users()
+        #查询t_shop_user表中的用户总数
         # 会话统计
         total_sessions = self.session.query(func.count(func.distinct(UserBehavior.session_id))).filter(
             and_(*conditions)
@@ -170,7 +170,7 @@ class UserBehaviorSQLARepository(SQLARepository):
 
         # 活跃用户（有多个事件的用户）
         active_users = self.session.query(func.count(func.distinct(UserBehavior.user_id))).filter(
-            and_(*conditions, UserBehavior.event_type.in_(['page_view', 'click', 'add_to_cart']))
+            and_(*conditions, getattr(UserBehavior.event_type, 'in_')(['page_view', 'click', 'add_to_cart']))
         ).scalar() or 0
 
         # 平均会话时长（简化计算）
@@ -180,20 +180,21 @@ class UserBehaviorSQLARepository(SQLARepository):
         single_page_sessions = self.session.query(func.count(func.distinct(UserBehavior.session_id))).filter(
             and_(*conditions, UserBehavior.event_type == 'page_view')
         ).subquery()
-        
+
+        # 总会话数
         total_sessions_subquery = self.session.query(func.count(func.distinct(UserBehavior.session_id))).filter(
             and_(*conditions)
         ).subquery()
-        
+
         bounce_rate = 0.35  # 默认35%
 
         # 热门事件
         top_events = self.session.query(
-            UserBehavior.event_type,
+            UserBehavior.event_name,
             func.count(UserBehavior.id).label('count')
         ).filter(
             and_(*conditions)
-        ).group_by(UserBehavior.event_type).order_by(
+        ).group_by(UserBehavior.event_name).order_by(
             desc('count')
         ).limit(10).all()
 
@@ -218,7 +219,11 @@ class UserBehaviorSQLARepository(SQLARepository):
             'top_pages': [{'page_path': p[0], 'views': p[1]} for p in top_pages]
         }
 
-    def get_funnel_data(self, funnel_config: Dict[str, Any], date_range: str) -> Dict[str, Any]:
+    def get_funnel_config(self, funnel_id: str) -> Optional[BehaviorFunnel]:
+        """获取漏斗配置"""
+        return self.session.query(BehaviorFunnel).filter(BehaviorFunnel.funnel_code == funnel_id).first()
+
+    def get_funnel_data(self, funnel_config: Optional[BehaviorFunnel], date_range: str, agent_id: str = None) -> Dict[str, Any]:
         """获取漏斗数据"""
         # 计算时间范围
         end_time = dt.datetime.now()
@@ -233,9 +238,9 @@ class UserBehaviorSQLARepository(SQLARepository):
         else:
             start_time = end_time - dt.timedelta(days=7)
 
-        steps = funnel_config.get('steps', [])
+        steps = funnel_config.steps if funnel_config else []
         funnel_data = {
-            'funnel_name': funnel_config.get('funnel_name', ''),
+            'funnel_name': funnel_config.funnel_name if funnel_config else '',
             'steps': []
         }
 
@@ -243,12 +248,12 @@ class UserBehaviorSQLARepository(SQLARepository):
         for step in steps:
             event_type = step.get('event_type')
             step_name = step.get('step_name', event_type)
-            
             # 统计该步骤的事件数量
-            count = self.session.query(func.count(func.distinct(UserBehavior.user_id))).filter(
+            count = self.session.query(func.count()).filter(
                 and_(
                     UserBehavior.create_time >= start_time,
                     UserBehavior.create_time <= end_time,
+                    UserBehavior.agent_id == agent_id if agent_id else UserBehavior.agent_id.isnot(None),
                     UserBehavior.event_type == event_type
                 )
             ).scalar() or 0
@@ -300,7 +305,7 @@ class UserBehaviorSQLARepository(SQLARepository):
         paths = []
         for session in sessions:
             session_id = session[0]
-            
+
             # 获取会话中的页面访问顺序
             page_events = self.session.query(UserBehavior.page_path).filter(
                 and_(
@@ -420,7 +425,7 @@ class UserBehaviorSQLARepository(SQLARepository):
 
 class BehaviorEventSQLARepository(SQLARepository):
     """行为事件定义仓储"""
-    
+
     @property
     def model(self) -> Type[BehaviorEvent]:
         return BehaviorEvent
@@ -432,7 +437,7 @@ class BehaviorEventSQLARepository(SQLARepository):
 
 class BehaviorSessionSQLARepository(SQLARepository):
     """用户会话仓储"""
-    
+
     @property
     def model(self) -> Type[BehaviorSession]:
         return BehaviorSession
@@ -444,7 +449,7 @@ class BehaviorSessionSQLARepository(SQLARepository):
 
 class BehaviorFunnelSQLARepository(SQLARepository):
     """转化漏斗配置仓储"""
-    
+
     @property
     def model(self) -> Type[BehaviorFunnel]:
         return BehaviorFunnel
@@ -456,11 +461,11 @@ class BehaviorFunnelSQLARepository(SQLARepository):
 
 class BehaviorAnalysisSQLARepository(SQLARepository):
     """行为分析结果仓储"""
-    
+
     @property
     def model(self) -> Type[BehaviorAnalysis]:
         return BehaviorAnalysis
 
     @property
     def query_params(self) -> Tuple:
-        return 'analysis_type', 'date_range' 
+        return 'analysis_type', 'date_range'
