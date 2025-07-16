@@ -11,6 +11,7 @@ from backend.behavior_analysis.domain.behavior import (
     UserBehavior, BehaviorEvent, BehaviorSession, BehaviorFunnel, BehaviorAnalysis
 )
 from backend.mini_core.service import shop_user_service
+from backend.mini_core.service.distribution_server import DistributionService, DistributionSQLARepository
 from kit.repository.sqla import SQLARepository
 from kit.util.sqla import id_column
 
@@ -161,7 +162,12 @@ class UserBehaviorSQLARepository(SQLARepository):
         ).scalar() or 0
 
         # 用户统计
-        total_users = shop_user_service.get_total_users()
+        distribution_service = DistributionService(DistributionSQLARepository(session=self.session))
+        # 处理agent_id可能为None的情况
+        if agent_id:
+            total_users = distribution_service.get_total_by_agent_id(agent_id)
+        else:
+            total_users = shop_user_service.get_total_users()
         #查询t_shop_user表中的用户总数
         # 会话统计
         total_sessions = self.session.query(func.count(func.distinct(UserBehavior.session_id))).filter(
@@ -207,6 +213,16 @@ class UserBehaviorSQLARepository(SQLARepository):
         ).group_by(UserBehavior.page_path).order_by(
             desc('views')
         ).limit(10).all()
+        # 输出实际执行的SQL语句，方便调试和分析
+        # from sqlalchemy.dialects import mysql
+        # try:
+        #     # 构造一个示例查询用于展示SQL
+        #     example_query = self.session.query(UserBehavior).filter(and_(*conditions))
+        #     compiled_sql = example_query.statement.compile(dialect=mysql.dialect(), compile_kwargs={"literal_binds": False})
+        #     print("实际执行SQL：", str(compiled_sql))
+        # except Exception as e:
+        #     print("SQL输出异常：", e)
+        # 调试信息：输出查询条件
 
         return {
             'total_users': total_users,
@@ -223,7 +239,7 @@ class UserBehaviorSQLARepository(SQLARepository):
         """获取漏斗配置"""
         return self.session.query(BehaviorFunnel).filter(BehaviorFunnel.funnel_code == funnel_id).first()
 
-    def get_funnel_data(self, funnel_config: Optional[BehaviorFunnel], date_range: str, agent_id: str = None) -> Dict[str, Any]:
+    def get_funnel_data(self, funnel_config: Optional[BehaviorFunnel], date_range: str, agent_id: Optional[str] = None) -> Dict[str, Any]:
         """获取漏斗数据"""
         # 计算时间范围
         end_time = dt.datetime.now()
@@ -249,13 +265,19 @@ class UserBehaviorSQLARepository(SQLARepository):
             event_type = step.get('event_type')
             step_name = step.get('step_name', event_type)
             # 统计该步骤的事件数量
+            conditions = [
+                UserBehavior.create_time >= start_time,
+                UserBehavior.create_time <= end_time,
+                UserBehavior.event_type == event_type
+            ]
+
+            # 添加agent_id条件
+            if agent_id:
+                conditions.append(UserBehavior.agent_id == agent_id)
+            # 如果不指定agent_id，则不添加条件，查询所有数据
+
             count = self.session.query(func.count()).filter(
-                and_(
-                    UserBehavior.create_time >= start_time,
-                    UserBehavior.create_time <= end_time,
-                    UserBehavior.agent_id == agent_id if agent_id else UserBehavior.agent_id.isnot(None),
-                    UserBehavior.event_type == event_type
-                )
+                and_(*conditions)
             ).scalar() or 0
 
             # 计算转化率

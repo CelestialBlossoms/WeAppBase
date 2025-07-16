@@ -27,6 +27,11 @@ class DistributionService(CRUDService[Distribution]):
     @property
     def repo(self) -> DistributionSQLARepository:
         return self._repo
+    def get_total_by_agent_id(self, agent_id: str) -> int:
+        # return self._repo.count(status=1, user_father_id=agent_id)
+        # 现有写法如下，建议优化
+        users = self._repo.find_all(user_father_id=agent_id)
+        return len(users)
 
     def get(self, args: dict) -> Dict[str, Any]:
 
@@ -250,7 +255,6 @@ class DistributionService(CRUDService[Distribution]):
             re_dic = dict(real_name=real_name, lv_id=item.lv_id, user_id=item.user_id)
             re_team.append(re_dic)
         return dict(data=re_team, total=total, code=200)
-
 
 class DistributionConfigService(CRUDService[DistributionConfig]):
     def __init__(self, repo: DistributionConfigSQLARepository):

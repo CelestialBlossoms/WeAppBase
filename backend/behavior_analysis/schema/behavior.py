@@ -27,7 +27,7 @@ class BehaviorOverviewQuerySchema(Schema):
 
     date_range = fields.Str(required=True, validate=validate.OneOf(['1d', '7d', '30d', '90d']))
     user_id = fields.Str(validate=validate.Length(max=64))
-
+    agent_id = fields.Str(validate=validate.Length(max=64))
 
 class BehaviorFunnelQuerySchema(Schema):
     """漏斗分析查询参数验证模式"""

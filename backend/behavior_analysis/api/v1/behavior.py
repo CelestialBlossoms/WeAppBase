@@ -44,7 +44,8 @@ class BehaviorOverviewAPI(MethodView):
         service = BehaviorService(user_behavior_sqla_repo)
         return service.get_overview_data(
             date_range=args.get('date_range', '7d'),
-            user_id=args.get('user_id', '')
+            user_id=args.get('user_id', ''),
+            agent_id=args.get('agent_id', '')
         )
 
 
