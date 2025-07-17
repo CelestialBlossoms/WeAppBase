@@ -94,7 +94,7 @@ class ShopProductCategorySQLARepository(SQLARepository):
 
     @property
     def query_params(self) -> Tuple:
-        return 'name', 'code', 'type', 'parent_id'
+        return 'name', 'code','status', 'type', 'parent_id'
 
 
 class ShopProductSQLARepository(SQLARepository):
