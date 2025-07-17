@@ -37,7 +37,7 @@ class ShopStoreAPI(MethodView):
 @blp.route('/shop-store/<int:store_id>')
 class ShopStoreDetailAPI(MethodView):
     """商店详情API"""
-    decorators = [auth_required()]
+    # decorators = [auth_required()]
 
     @blp.response(ReShopStoreSchema)
     def get(self, store_id: int):
