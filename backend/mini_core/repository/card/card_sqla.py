@@ -36,10 +36,12 @@ class CardSQLARepository( SQLARepository):
     @property
     def model(self) -> Type[Card]:
         return Card
-
+    @property
+    def query_params(self) -> Tuple:
+        return 'store_id','name','position'
     @property
     def in_query_params(self) -> Tuple:
-        return 'name','openid'
+        return ('openid',)
 
 
 

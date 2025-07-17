@@ -32,8 +32,8 @@ class CardService(CRUDService[Card]):
         # 处理筛选条件
         if "name" in args and args["name"]:
             query_params["name"] = args["name"]
-        if "company" in args and args["company"]:
-            query_params["company"] = args["company"]
+        if "store_id" in args and args["store_id"]:
+            query_params["store_id"] = args["store_id"]
         if "position" in args and args["position"]:
             query_params["position"] = args["position"]
         if "phone" in args and args["phone"]:

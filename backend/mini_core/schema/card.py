@@ -18,7 +18,7 @@ class CardUserSchema(ListQueryArgSchema):
     openid = webargs_fields.Str(description='微信ID')
     weixing = webargs_fields.Str(description='微信')
     position = webargs_fields.Str(description='职位')
-    company = webargs_fields.Str(description='公司')
+    store_id = webargs_fields.Str(description='门店编号')
     phone = webargs_fields.Int(description='电话')
 
 
