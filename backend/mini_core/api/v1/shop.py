@@ -6,7 +6,7 @@ from backend.mini_core.schema.shop import (
     ShopProductQueryArgSchema, ReShopProductSchema, ReShopProductListSchema,
     ShopProductStockUpdateArgSchema, ShopProductStatusUpdateArgSchema,
     ReShopProductStockUpdateSchema, ReProductCategoryTreeSchema,ProductCategorySchema,ShopProductSchema,
-    ProductCategoryBatchDeleteSchema
+    ProductCategoryBatchDeleteSchema, ShopProductBatchStatusUpdateArgSchema, ReShopProductBatchStatusUpdateSchema
 )
 from backend.mini_core.schema.banner import (BannerIDSchema)
 from kit.schema.base import  FieldQuerySchema
@@ -127,8 +127,8 @@ class ShopProductDetailAPI(MethodView):
     @blp.response(ReShopProductSchema)
     def get(self, product_id: int):
         """获取指定ID的商品"""
-        data = shop_product_service.get({"id": product_id})
-        return dict(code=200,data=data)
+        data = shop_product_service.get_by_id(product_id)
+        return data
 
     @blp.arguments(ShopProductSchema)
     @blp.response(ReShopProductSchema)
@@ -139,7 +139,7 @@ class ShopProductDetailAPI(MethodView):
     @blp.response(ReShopProductSchema)
     def delete(self, product_id: int):
         """删除指定ID的商品"""
-        return shop_product_service.delete(product_id)
+        return shop_product_service.logical_delete(product_id)
 
 
 @blp.route('/shop-product/category/<int:category_id>')
@@ -192,5 +192,74 @@ class ShopProductToggleRecommendationAPI(MethodView):
     def post(self, product_id: int):
         """切换商品的推荐状态"""
         return shop_product_service.toggle_recommendation(product_id)
+
+
+@blp.route('/shop-product/batch')
+class ShopProductBatchAPI(MethodView):
+    """批量商品操作API"""
+    decorators = [auth_required()]
+
+    @blp.arguments(ShopProductBatchStatusUpdateArgSchema)
+    @blp.response(ReShopProductBatchStatusUpdateSchema)
+    def post(self, args):
+        """批量更新商品状态（上架/下架/删除）"""
+        return shop_product_service.batch_change_status(args["ids"], args["action"])
+
+
+@blp.route('/shop-product/logical-delete/<int:product_id>')
+class ShopProductLogicalDeleteAPI(MethodView):
+    """商品逻辑删除API"""
+    decorators = [auth_required()]
+
+    @blp.response()
+    def delete(self, product_id: int):
+        """逻辑删除商品"""
+        return shop_product_service.logical_delete(product_id)
+
+
+@blp.route('/shop-product/batch-logical-delete')
+class ShopProductBatchLogicalDeleteAPI(MethodView):
+    """批量逻辑删除商品API"""
+    decorators = [auth_required()]
+
+    @blp.arguments(ShopProductBatchStatusUpdateArgSchema)
+    @blp.response()
+    def post(self, args):
+        """批量逻辑删除商品"""
+        return shop_product_service.batch_logical_delete(args["ids"])
+
+
+@blp.route('/shop-product/restore/<int:product_id>')
+class ShopProductRestoreAPI(MethodView):
+    """商品恢复API"""
+    decorators = [auth_required()]
+
+    @blp.response()
+    def post(self, product_id: int):
+        """恢复逻辑删除的商品"""
+        return shop_product_service.restore_product(product_id)
+
+
+@blp.route('/shop-product/deleted')
+class ShopProductDeletedAPI(MethodView):
+    """已删除商品查询API"""
+    decorators = [auth_required()]
+
+    @blp.response(ReShopProductListSchema)
+    def get(self):
+        """获取已删除的商品列表"""
+        return shop_product_service.get_deleted_products()
+
+
+@blp.route('/shop-product/all-including-deleted')
+class ShopProductAllIncludingDeletedAPI(MethodView):
+    """获取所有商品（包括已删除的）API"""
+    decorators = [auth_required()]
+
+    @blp.arguments(ShopProductQueryArgSchema, location='query')
+    @blp.response(ReShopProductListSchema)
+    def get(self, args: dict):
+        """获取所有商品（包括已删除的）"""
+        return shop_product_service.get_all_products_including_deleted(args)
 
 

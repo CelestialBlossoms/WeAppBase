@@ -16,28 +16,44 @@ class ShopProductService(CRUDService[ShopProduct]):
     def repo(self) -> ShopProductSQLARepository:
         return self._repo
 
+    def get_by_id(self, product_id: int) -> Dict[str, Any]:
+        """根据id获取商品"""
+        if product_id:
+            data = self._repo.get_by_id(product_id)
+            if data is not None:
+                return dict(data=data, code=200)
+            else:
+                return dict(data=None, code=404)
+        else:
+            return dict(data=None, code=404)
+
     def get_list(self, args: dict) -> Dict[str, Any]:
         """根据条件获取商品"""
         product_id = args.get("id")
         if product_id:
-            data = self._repo.get(product_id)
+            data = self._repo.get_by_id(product_id)
             return dict(data=data, code=200)
+
+        # 确保默认不包含已删除的数据
+        if 'include_deleted' not in args:
+            args['include_deleted'] = False
+
         data, total = self._repo.list(**args)
         return dict(data=data, total=total, code=200)
 
     def list_by_category(self, category_id: int) -> Dict[str, Any]:
         """获取指定分类下的所有商品"""
-        data = self._repo.find(category_id=category_id)
+        data = self._repo.find(category_id=category_id, include_deleted=False)
         return dict(data=data, code=200)
 
     def get_recommended(self) -> Dict[str, Any]:
         """获取推荐商品"""
-        data = self._repo.find(is_recommended=True, status="上架")
+        data = self._repo.find(is_recommended=True, status="上架", include_deleted=False)
         return dict(data=data, code=200)
 
     def update_stock(self, product_id: int, quantity: int) -> Dict[str, Any]:
         """更新商品库存"""
-        product = self._repo.get(product_id)
+        product = self._repo.get_by_id(product_id)
         if not product:
             return dict(data=None, code=404, message="商品不存在")
 
@@ -66,12 +82,12 @@ class ShopProductService(CRUDService[ShopProduct]):
 
     def delete_pro(self, product_id: int) -> Dict[str, Any]:
         """删除商品"""
-        result = super().delete(product_id)
+        result = self._repo.logical_delete(product_id, commit=True)
         return dict(data=result, code=200)
 
     def change_status(self, product_id: int, status: str) -> Dict[str, Any]:
         """更改商品状态（上架/下架）"""
-        product = self._repo.get(product_id)
+        product = self._repo.get_by_id(product_id)
         if not product:
             return dict(data=None, code=404, message="商品不存在")
 
@@ -79,9 +95,152 @@ class ShopProductService(CRUDService[ShopProduct]):
         result = self._repo.update(product_id, product)
         return dict(data=result, code=200)
 
+    def batch_change_status(self, product_ids: List[int], action: str) -> Dict[str, Any]:
+        """批量更改商品状态（上架/下架/删除）"""
+        # 将action转换为对应的状态
+        status_map = {
+            "publish": "上架",
+            "unpublish": "下架",
+            "delete": "删除"
+        }
+        target_status = status_map.get(action)
+        if not target_status:
+            return dict(
+                success_count=0,
+                failed_count=len(product_ids),
+                failed_items=[],
+                code=400,
+                message="无效的操作类型"
+            )
+
+        success_count = 0
+        failed_count = 0
+        failed_items = []
+
+        for product_id in product_ids:
+            try:
+                product = self._repo.get_by_id(product_id)
+                if not product:
+                    failed_count += 1
+                    failed_items.append({
+                        "product_id": product_id,
+                        "error": "商品不存在"
+                    })
+                    continue
+
+                # 更新商品状态
+                if action == "delete":
+                    # 逻辑删除
+                    success = self._repo.logical_delete(product_id, commit=False)
+                    if success:
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                        failed_items.append({
+                            "product_id": product_id,
+                            "error": "商品删除失败"
+                        })
+                else:
+                    # 更新状态
+                    product.status = target_status
+                    self._repo.update(product_id, product)
+                    success_count += 1
+
+            except Exception as e:
+                failed_count += 1
+                failed_items.append({
+                    "product_id": product_id,
+                    "error": str(e)
+                })
+
+        # 提交事务
+        try:
+            self._repo.session.commit()
+        except Exception as e:
+            self._repo.session.rollback()
+            return dict(
+                success_count=0,
+                failed_count=len(product_ids),
+                failed_items=[{"product_id": pid, "error": "事务提交失败"} for pid in product_ids],
+                code=500,
+                message=f"批量操作失败: {str(e)}"
+            )
+
+        # 构建返回消息
+        if failed_count == 0:
+            message = f"成功{action}了{success_count}个商品"
+        elif success_count == 0:
+            message = f"批量{action}操作失败，所有商品都操作失败"
+        else:
+            message = f"批量{action}操作完成，成功{success_count}个，失败{failed_count}个"
+
+        return dict(
+            success_count=success_count,
+            failed_count=failed_count,
+            failed_items=failed_items,
+            code=200,
+            message=message
+        )
+
+    def logical_delete(self, product_id: int) -> Dict[str, Any]:
+        """逻辑删除商品"""
+        try:
+            success = self._repo.logical_delete(product_id)
+            if success:
+                return dict(code=200, message="商品删除成功")
+            else:
+                return dict(code=404, message="商品不存在或已被删除")
+        except Exception as e:
+            return dict(code=500, message=f"删除失败: {str(e)}")
+
+    def batch_logical_delete(self, product_ids: List[int]) -> Dict[str, Any]:
+        """批量逻辑删除商品"""
+        if not product_ids:
+            return dict(code=400, message="未提供要删除的商品ID")
+
+        try:
+            deleted_count = self._repo.batch_logical_delete(product_ids)
+            return dict(
+                code=200,
+                message=f"成功删除{deleted_count}个商品",
+                data={"deleted_count": deleted_count}
+            )
+        except Exception as e:
+            return dict(code=500, message=f"批量删除失败: {str(e)}")
+
+    def restore_product(self, product_id: int) -> Dict[str, Any]:
+        """恢复逻辑删除的商品"""
+        try:
+            success = self._repo.restore(product_id)
+            if success:
+                return dict(code=200, message="商品恢复成功")
+            else:
+                return dict(code=404, message="商品不存在或未被删除")
+        except Exception as e:
+            return dict(code=500, message=f"恢复失败: {str(e)}")
+
+    def get_deleted_products(self, **kwargs) -> Dict[str, Any]:
+        """获取已删除的商品列表"""
+        try:
+            products = self._repo.get_deleted_products(**kwargs)
+            return dict(
+                code=200,
+                data=products,
+                total=len(products)
+            )
+        except Exception as e:
+            return dict(code=500, message=f"查询失败: {str(e)}")
+
+    def get_all_products_including_deleted(self, args: dict) -> Dict[str, Any]:
+        """获取所有商品（包括已删除的）"""
+        # 明确指定包含已删除的数据
+        args['include_deleted'] = True
+        data, total = self._repo.list(**args)
+        return dict(data=data, total=total, code=200)
+
     def toggle_recommendation(self, product_id: int) -> Dict[str, Any]:
         """切换商品推荐状态"""
-        product = self._repo.get(product_id)
+        product = self._repo.get_by_id(product_id)
         if not product:
             return dict(data=None, code=404, message="商品不存在")
 

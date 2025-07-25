@@ -30,6 +30,7 @@ class ShopProductQueryArgSchema(EntityIntSchema):
     price_min = webargs_fields.Float(description='最低价格')
     price_max = webargs_fields.Float(description='最高价格')
     keyword = webargs_fields.Str(description='关键词')
+    include_deleted = webargs_fields.Bool(description='是否包含已删除的商品', missing=False)
 
 
 # 商品库存更新参数 Schema
@@ -90,3 +91,26 @@ class ReShopProductStockUpdateSchema(EntityIntSchema):
 
 class ProductCategoryBatchDeleteSchema(Schema):
     category_ids = webargs_fields.List(webargs_fields.Int(), required=True, description='要删除的分类ID列表')
+
+
+# 批量商品状态更新参数 Schema
+class ShopProductBatchStatusUpdateArgSchema(Schema):
+    ids = webargs_fields.List(webargs_fields.Int(), required=True, description='商品ID列表')
+    action = webargs_fields.Str(required=True, description='操作类型：publish(上架) 或 unpublish(下架) 或 delete(删除)',
+                               validate=validate.OneOf(["publish", "unpublish", "delete"]))
+
+    @validates("ids")
+    def validate_ids(self, value):
+        if not value:
+            raise ValidationError("商品ID列表不能为空")
+        if len(value) > 100:
+            raise ValidationError("一次最多只能操作100个商品")
+
+
+# 批量商品状态更新响应 Schema
+class ReShopProductBatchStatusUpdateSchema(Schema):
+    success_count = webargs_fields.Int(description='成功操作的商品数量')
+    failed_count = webargs_fields.Int(description='失败操作的商品数量')
+    failed_items = webargs_fields.List(webargs_fields.Dict(), description='失败的商品详情')
+    code = webargs_fields.Int(description='状态码')
+    message = webargs_fields.Str(description='操作结果消息')

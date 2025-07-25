@@ -3,7 +3,7 @@ from typing import Optional,Any,Text
 from decimal import Decimal
 from marshmallow_dataclass import dataclass
 
-from kit.domain.entity import Entity, EntityInt
+from kit.domain.entity import Entity, EntityInt, SoftDeleteMixin
 
 
 @dataclass
@@ -25,9 +25,8 @@ class ShopProductCategory(Entity):
     content: Text = field(default=None, metadata=dict(description='内容文本'))
 
 
-
 @dataclass
-class ShopProduct(Entity):
+class ShopProduct(Entity, SoftDeleteMixin):
     category_id: int = field(default=None, metadata=dict(description='商品分类ID'))
     code: str = field(default=None, metadata=dict(description='商品编号'))
     name: str = field(default=None, metadata=dict(description='商品名称'))
@@ -67,3 +66,5 @@ class ShopProduct(Entity):
     spec_combinations: Any = field(default=None, metadata=dict(description='规格组合(JSON格式，包含初始方式/颜色/尺寸等搭配)'))
     updater: str = field(default=None, metadata=dict(description='更新者'))
     store_id: int = field(default=None, metadata=dict(description='店铺ID'))
+    # 逻辑删除字段
+    is_deleted: bool = field(default=False, metadata=dict(description='是否已删除'))

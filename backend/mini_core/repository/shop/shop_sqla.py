@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Type, Tuple
+from typing import Type, Tuple, List, Optional
 
 from flask_jwt_extended import get_current_user
 from sqlalchemy import Column, String, Table, Integer, DateTime, Text, Enum, Boolean, Numeric, ForeignKey,JSON
@@ -79,7 +79,9 @@ shop_product_table = Table(
     Column('update_time', DateTime, default=dt.datetime.now, onupdate=dt.datetime.now),
     Column('updater', String(64), comment='更新者'),
     Column('store_id', Integer, comment='店铺ID'),
-
+    # 逻辑删除字段
+    Column('is_deleted', Boolean, default=False, comment='是否已删除'),
+    Column('delete_time', Integer, default=0, comment='删除时间戳'),
 )
 
 mapper_registry.map_imperatively(ShopProduct, shop_product_table)
@@ -105,6 +107,159 @@ class ShopProductSQLARepository(SQLARepository):
     @property
     def query_params(self) -> Tuple:
         return 'status', 'type','category_id','name', 'code',"is_recommended"
+
+    def get_queryset(self, **kwargs):
+        """重写查询方法，自动过滤已删除的数据"""
+        # 获取父类的查询条件
+        conditions = self._get_conditions(**kwargs)
+        sort_conditions = self._get_sort_conditions(**kwargs)
+        
+        # 添加逻辑删除过滤条件（除非明确指定要查询已删除的数据）
+        if not kwargs.get('include_deleted', False):
+            conditions.append(self.model.is_deleted == False)
+        
+        return self.session.query(self.model).filter(*conditions).order_by(*sort_conditions)
+
+    def find(self, **kwargs) -> Optional[ShopProduct]:
+        """重写find方法，自动过滤已删除的数据"""
+        if not kwargs:
+            return None
+
+        # 添加逻辑删除过滤条件（除非明确指定要查询已删除的数据）
+        if not kwargs.get('include_deleted', False):
+            kwargs['is_deleted'] = False
+
+        query = self.session.query(self.model).filter_by(**kwargs)
+        return query.first()
+
+    def find_all(self, **kwargs) -> List[ShopProduct]:
+        """重写find_all方法，自动过滤已删除的数据"""
+        # 添加逻辑删除过滤条件（除非明确指定要查询已删除的数据）
+        if not kwargs.get('include_deleted', False):
+            kwargs['is_deleted'] = False
+
+        query = self.session.query(self.model).filter_by(**kwargs)
+        return query.all()
+
+    def get_by_id(self, entity_id: int) -> Optional[ShopProduct]:
+        """重写get_by_id方法，自动过滤已删除的数据"""
+        if entity_id is None:
+            return None
+        return self.session.query(self.model).filter(
+            self.model.id == entity_id,
+            self.model.is_deleted == False
+        ).first()
+
+    def logical_delete(self, product_id: int, commit: bool = True) -> bool:
+        """
+        逻辑删除商品
+        
+        Args:
+            product_id: 商品ID
+            commit: 是否立即提交事务
+            
+        Returns:
+            bool: 删除是否成功
+        """
+        import time
+        try:
+            result = self.session.query(self.model).filter(
+                self.model.id == product_id,
+                self.model.is_deleted == False
+            ).update({
+                'is_deleted': True,
+                'delete_time': int(time.time()),
+                'update_time': dt.datetime.now()
+            })
+            
+            if commit:
+                self.session.commit()
+                
+            return result > 0
+        except Exception as e:
+            if commit:
+                self.session.rollback()
+            raise e
+
+    def batch_logical_delete(self, product_ids: List[int], commit: bool = True) -> int:
+        """
+        批量逻辑删除商品
+        
+        Args:
+            product_ids: 商品ID列表
+            commit: 是否立即提交事务
+            
+        Returns:
+            int: 成功删除的数量
+        """
+        import time
+        try:
+            result = self.session.query(self.model).filter(
+                self.model.id.in_(product_ids),
+                self.model.is_deleted == False
+            ).update({
+                'is_deleted': True,
+                'delete_time': int(time.time()),
+                'update_time': dt.datetime.now()
+            }, synchronize_session=False)
+            
+            if commit:
+                self.session.commit()
+                
+            return result
+        except Exception as e:
+            if commit:
+                self.session.rollback()
+            raise e
+
+    def restore(self, product_id: int, commit: bool = True) -> bool:
+        """
+        恢复逻辑删除的商品
+        
+        Args:
+            product_id: 商品ID
+            commit: 是否立即提交事务
+            
+        Returns:
+            bool: 恢复是否成功
+        """
+        try:
+            result = self.session.query(self.model).filter(
+                self.model.id == product_id,
+                self.model.is_deleted == True
+            ).update({
+                'is_deleted': False,
+                'delete_time': 0,
+                'update_time': dt.datetime.now()
+            })
+            
+            if commit:
+                self.session.commit()
+                
+            return result > 0
+        except Exception as e:
+            if commit:
+                self.session.rollback()
+            raise e
+
+    def get_deleted_products(self, **kwargs) -> List[ShopProduct]:
+        """
+        获取已删除的商品列表
+        
+        Args:
+            **kwargs: 查询条件
+            
+        Returns:
+            List[ShopProduct]: 已删除的商品列表
+        """
+        query = self.session.query(self.model).filter(self.model.is_deleted == True)
+        
+        # 添加其他查询条件
+        for key, value in kwargs.items():
+            if hasattr(self.model, key):
+                query = query.filter(getattr(self.model, key) == value)
+                
+        return query.all()
 
     # @property
     # def fuzzy_query_params(self) -> Tuple:
