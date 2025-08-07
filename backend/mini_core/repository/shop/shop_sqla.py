@@ -113,11 +113,11 @@ class ShopProductSQLARepository(SQLARepository):
         # 获取父类的查询条件
         conditions = self._get_conditions(**kwargs)
         sort_conditions = self._get_sort_conditions(**kwargs)
-        
+
         # 添加逻辑删除过滤条件（除非明确指定要查询已删除的数据）
         if not kwargs.get('include_deleted', False):
             conditions.append(self.model.is_deleted == False)
-        
+
         return self.session.query(self.model).filter(*conditions).order_by(*sort_conditions)
 
     def find(self, **kwargs) -> Optional[ShopProduct]:
@@ -153,11 +153,11 @@ class ShopProductSQLARepository(SQLARepository):
     def logical_delete(self, product_id: int, commit: bool = True) -> bool:
         """
         逻辑删除商品
-        
+
         Args:
             product_id: 商品ID
             commit: 是否立即提交事务
-            
+
         Returns:
             bool: 删除是否成功
         """
@@ -171,10 +171,10 @@ class ShopProductSQLARepository(SQLARepository):
                 'delete_time': int(time.time()),
                 'update_time': dt.datetime.now()
             })
-            
+
             if commit:
                 self.session.commit()
-                
+
             return result > 0
         except Exception as e:
             if commit:
@@ -184,11 +184,11 @@ class ShopProductSQLARepository(SQLARepository):
     def batch_logical_delete(self, product_ids: List[int], commit: bool = True) -> int:
         """
         批量逻辑删除商品
-        
+
         Args:
             product_ids: 商品ID列表
             commit: 是否立即提交事务
-            
+
         Returns:
             int: 成功删除的数量
         """
@@ -202,10 +202,10 @@ class ShopProductSQLARepository(SQLARepository):
                 'delete_time': int(time.time()),
                 'update_time': dt.datetime.now()
             }, synchronize_session=False)
-            
+
             if commit:
                 self.session.commit()
-                
+
             return result
         except Exception as e:
             if commit:
@@ -215,11 +215,11 @@ class ShopProductSQLARepository(SQLARepository):
     def restore(self, product_id: int, commit: bool = True) -> bool:
         """
         恢复逻辑删除的商品
-        
+
         Args:
             product_id: 商品ID
             commit: 是否立即提交事务
-            
+
         Returns:
             bool: 恢复是否成功
         """
@@ -232,10 +232,10 @@ class ShopProductSQLARepository(SQLARepository):
                 'delete_time': 0,
                 'update_time': dt.datetime.now()
             })
-            
+
             if commit:
                 self.session.commit()
-                
+
             return result > 0
         except Exception as e:
             if commit:
@@ -245,20 +245,20 @@ class ShopProductSQLARepository(SQLARepository):
     def get_deleted_products(self, **kwargs) -> List[ShopProduct]:
         """
         获取已删除的商品列表
-        
+
         Args:
             **kwargs: 查询条件
-            
+
         Returns:
             List[ShopProduct]: 已删除的商品列表
         """
         query = self.session.query(self.model).filter(self.model.is_deleted == True)
-        
+
         # 添加其他查询条件
         for key, value in kwargs.items():
             if hasattr(self.model, key):
                 query = query.filter(getattr(self.model, key) == value)
-                
+
         return query.all()
 
     # @property

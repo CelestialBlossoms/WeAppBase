@@ -13,6 +13,6 @@ class ShopProductDetailAPI(MethodView):
     @blp.response(ReShopProductSchema)
     def get(self, product_id: int):
         """获取指定ID的商品"""
-        data = shop_product_service.get({"id": product_id})
+        data = shop_product_service.get(product_id)
         return dict(code=200,data=data)
 
