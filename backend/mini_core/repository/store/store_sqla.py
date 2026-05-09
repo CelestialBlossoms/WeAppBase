@@ -72,41 +72,59 @@ class ShopStoreSQLARepository(SQLARepository):
     def range_query_params(self) -> Tuple:
         return 'service_fee_rate', 'delivery_price', 'min_order_amount'
 
-    def get_nearby_stores(self, latitude: float, longitude: float, distance: float = 5.0) -> List[Dict[str, Any]]:
+    def get_nearby_stores(self, latitude: float, longitude: float, distance: float = 5.0,
+                          page: int = 1, size: int = 20) -> tuple:
         """
-        获取附近的商店
+        获取附近的商店（分页）
 
         Args:
-            latitude: 纬度
-            longitude: 经度
-            distance: 距离范围（公里）
+            latitude: 纬度 (-90 ~ 90)
+            longitude: 经度 (-180 ~ 180)
+            distance: 距离范围（公里，0.1 ~ 50）
+            page: 页码（从 1 开始）
+            size: 每页个数（1 ~ 100）
 
         Returns:
-            List[Dict[str, Any]]: 附近商店列表
+            (List[Dict[str, Any]], int): (附近商店列表, 总数)
         """
-        # 使用地理位置计算距离的SQL
-        # 这里使用了简化的计算方法，实际应用中可能需要更精确的地理位置计算
-        sql = """
-        SELECT *,
-            (6371 * acos(cos(radians(:lat)) * cos(radians(latitude))
-            * cos(radians(longitude) - radians(:lng))
-            + sin(radians(:lat)) * sin(radians(latitude)))) AS distance
-        FROM shop_store
-        WHERE status = '正常'
-        HAVING distance < :distance
-        ORDER BY distance
-        """
+        distance_expr = (
+            '(6371 * acos(cos(radians(:lat)) * cos(radians(latitude))'
+            ' * cos(radians(longitude) - radians(:lng))'
+            ' + sin(radians(:lat)) * sin(radians(latitude))))'
+        )
 
-        result = self.session.execute(
-            sql,
-            {
-                'lat': latitude,
-                'lng': longitude,
-                'distance': distance
-            }
-        ).fetchall()
+        # 分页查询
+        sql = (
+            f'SELECT *, {distance_expr} AS distance '
+            'FROM shop_store '
+            "WHERE status = '正常' "
+            'HAVING distance < :distance '
+            'ORDER BY distance '
+            'LIMIT :limit OFFSET :offset'
+        )
 
-        return [dict(row) for row in result]
+        params = {
+            'lat': latitude,
+            'lng': longitude,
+            'distance': distance,
+            'limit': size,
+            'offset': (page - 1) * size,
+        }
+
+        result = self.session.execute(sql, params).fetchall()
+
+        # 计数查询
+        count_sql = (
+            f'SELECT COUNT(*) FROM shop_store '
+            "WHERE status = '正常' "
+            f'AND {distance_expr} < :distance'
+        )
+        total = self.session.execute(
+            count_sql,
+            {'lat': latitude, 'lng': longitude, 'distance': distance}
+        ).scalar()
+
+        return [dict(row) for row in result], total
 
     def get_stores_by_category(self, category_id: int) -> List[ShopStore]:
         """

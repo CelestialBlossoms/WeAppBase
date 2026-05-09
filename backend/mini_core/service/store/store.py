@@ -41,10 +41,11 @@ class ShopStoreService(CRUDService[ShopStore]):
         data = self._repo.search_stores(keyword)
         return dict(data=data, code=200)
 
-    def get_nearby(self, latitude: float, longitude: float, distance: float = 5.0) -> Dict[str, Any]:
-        """获取附近的商店"""
-        data = self._repo.get_nearby_stores(latitude, longitude, distance)
-        return dict(data=data, code=200)
+    def get_nearby(self, latitude: float, longitude: float, distance: float = 5.0,
+                   page: int = 1, size: int = 20) -> Dict[str, Any]:
+        """获取附近的商店（带分页）"""
+        data, total = self._repo.get_nearby_stores(latitude, longitude, distance, page, size)
+        return dict(data=data, code=200, total=total)
 
     def get_stats(self) -> Dict[str, Any]:
         """获取商店统计信息"""

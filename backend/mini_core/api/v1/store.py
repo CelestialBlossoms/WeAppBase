@@ -107,9 +107,11 @@ class NearbyShopStoreAPI(MethodView):
     def get(self, args):
         """获取附近的商店"""
         return shop_store_service.get_nearby(
-            args["latitude"],
-            args["longitude"],
-            args.get("distance", 5.0)
+            latitude=args["latitude"],
+            longitude=args["longitude"],
+            distance=args.get("distance", 5.0),
+            page=args.get("page", 1),
+            size=args.get("size", 20)
         )
 
 
