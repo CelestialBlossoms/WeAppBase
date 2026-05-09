@@ -140,7 +140,12 @@ class ReShopOrderSchema(Schema):
 
 
 class ReShopOrderListSchema(ListResultSchema):
-    data = webargs_fields.List(webargs_fields.Nested(ShopOrderSchema()))
+    class ShopOrderListItemSchema(ShopOrderSchema):
+        order_details = fields.List(fields.Dict(), description='订单明细列表')
+        logistics_info = fields.Dict(allow_none=True, description='物流信息')
+        user_info = fields.Dict(allow_none=True, description='用户信息')
+
+    data = webargs_fields.List(webargs_fields.Nested(ShopOrderListItemSchema()))
     code = webargs_fields.Int(description='状态码')
     total = webargs_fields.Int(description='总数')
 

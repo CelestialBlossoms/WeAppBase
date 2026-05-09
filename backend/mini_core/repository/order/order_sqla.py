@@ -1,8 +1,9 @@
+from dataclasses import asdict
 from typing import Type, Tuple, List, Dict, Any
 import datetime as dt
 from kit.exceptions import ServiceBadRequest
 from sqlalchemy import Column, String, Table, Integer, DateTime, Text, Enum, Boolean, Numeric, DECIMAL, BigInteger
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from backend.extensions import mapper_registry
 from backend.mini_core.domain.order.order import ShopOrder
@@ -75,7 +76,10 @@ class ShopOrderSQLARepository(SQLARepository):
         return ShopOrder
     @property
     def query_params(self):
-        return ('status')
+        return (
+            'order_no', 'order_sn', 'user_id', 'status', 'payment_status',
+            'delivery_status', 'refund_status', 'order_type', 'order_source'
+        )
     @property
     def in_query_params(self) -> Tuple:
         return ('order_no', 'order_sn', 'user_id', 'status', 'payment_status', 'delivery_status', 'refund_status',
@@ -89,6 +93,141 @@ class ShopOrderSQLARepository(SQLARepository):
     def range_query_params(self) -> Tuple:
         return ('create_time', 'payment_time', 'ship_time', 'transaction_time', 'confirm_time', 'close_time',
                 'product_amount', 'actual_amount')
+
+    def get_order_list_with_related(self, **kwargs) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        后台订单列表查询。
+
+        先分页订单主表，再批量加载当前页需要的订单明细、物流、用户信息，避免循环查库。
+        """
+        from backend.mini_core.domain.order.order_detail import OrderDetail
+        from backend.mini_core.domain.order.shop_order_logistics import ShopOrderLogistics
+        from backend.mini_core.domain.t_user import ShopUser
+
+        page = kwargs.get('page')
+        size = kwargs.get('size')
+        need_total_count = kwargs.get('need_total_count')
+        ordering = kwargs.get('ordering') or ['-update_time']
+
+        query = self.session.query(self.model)
+        query = self._apply_order_list_filters(query, kwargs)
+        total = query.count() if need_total_count else 0
+        query = query.order_by(*self._get_sort_conditions(ordering=ordering))
+
+        if page and size:
+            query = self.and_pagination(query, page, size)
+
+        orders = query.all()
+        if not orders:
+            return [], total
+
+        order_nos = [order.order_no for order in orders if order.order_no]
+        user_ids = list({str(order.user_id) for order in orders if order.user_id})
+
+        details_by_order_no = self._get_details_by_order_no(OrderDetail, order_nos)
+        logistics_by_order_no = self._get_logistics_by_order_no(ShopOrderLogistics, order_nos)
+        users_by_user_id = self._get_users_by_user_id(ShopUser, user_ids)
+
+        return [
+            self._build_order_list_item(
+                order=order,
+                order_details=details_by_order_no.get(order.order_no, []),
+                logistics_info=logistics_by_order_no.get(order.order_no),
+                user_info=users_by_user_id.get(str(order.user_id)),
+            )
+            for order in orders
+        ], total
+
+    def _apply_order_list_filters(self, query, kwargs: Dict[str, Any]):
+        from backend.mini_core.domain.order.order_detail import OrderDetail
+
+        skip_keys = {'page', 'size', 'need_total_count', 'ordering', 'keyword', 'product_id', 'sku_id'}
+        query_kwargs = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in skip_keys and value not in (None, '')
+        }
+
+        conditions = self._get_conditions(**query_kwargs)
+        if conditions:
+            query = query.filter(*conditions)
+
+        keyword = kwargs.get('keyword')
+        if keyword:
+            like_value = f'%{keyword}%'
+            query = query.filter(or_(
+                self.model.order_no.like(like_value),
+                self.model.order_sn.like(like_value),
+                self.model.nickname.like(like_value),
+                self.model.phone.like(like_value),
+                self.model.receiver_name.like(like_value),
+                self.model.receiver_phone.like(like_value),
+                self.model.product_name.like(like_value),
+                self.model.express_no.like(like_value),
+            ))
+
+        detail_conditions = []
+        product_id = kwargs.get('product_id')
+        sku_id = kwargs.get('sku_id')
+        if product_id not in (None, ''):
+            detail_conditions.append(OrderDetail.product_id == product_id)
+        if sku_id not in (None, ''):
+            detail_conditions.append(OrderDetail.sku_id == str(sku_id))
+        if detail_conditions:
+            detail_order_nos = self.session.query(OrderDetail.order_no).filter(*detail_conditions)
+            query = query.filter(self.model.order_no.in_(detail_order_nos))
+
+        return query
+
+    def _get_details_by_order_no(self, detail_model, order_nos: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        if not order_nos:
+            return {}
+
+        rows = self.session.query(detail_model).filter(detail_model.order_no.in_(order_nos)).all()
+        details_by_order_no: Dict[str, List[Dict[str, Any]]] = {}
+        for detail in rows:
+            details_by_order_no.setdefault(detail.order_no, []).append(asdict(detail))
+        return details_by_order_no
+
+    def _get_logistics_by_order_no(self, logistics_model, order_nos: List[str]) -> Dict[str, Dict[str, Any]]:
+        if not order_nos:
+            return {}
+
+        rows = self.session.query(logistics_model).filter(logistics_model.order_no.in_(order_nos)).all()
+        return {row.order_no: asdict(row) for row in rows}
+
+    def _get_users_by_user_id(self, user_model, user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        if not user_ids:
+            return {}
+
+        rows = self.session.query(user_model).filter(user_model.user_id.in_(user_ids)).all()
+        return {
+            str(row.user_id): {
+                'id': row.id,
+                'user_id': row.user_id,
+                'username': row.username,
+                'nickname': row.nickname,
+                'phone': row.phone,
+                'avatar': row.avatar,
+                'member_level': row.member_level,
+                'points': row.points,
+                'status': row.status,
+            }
+            for row in rows
+        }
+
+    def _build_order_list_item(
+        self,
+        order: ShopOrder,
+        order_details: List[Dict[str, Any]],
+        logistics_info: Dict[str, Any],
+        user_info: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        order_data = asdict(order)
+        order_data['order_details'] = order_details
+        order_data['logistics_info'] = logistics_info
+        order_data['user_info'] = user_info
+        return order_data
 
     def get_order_stats(self) -> Dict[str, Any]:
         """获取订单统计信息"""

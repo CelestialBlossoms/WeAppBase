@@ -42,7 +42,7 @@ class ShopOrderService(CRUDService[ShopOrder]):
             args['actual_amount'] = [args.pop('min_amount'), args.pop('max_amount')]
         if not "ordering" in args:
             args['ordering'] = ['-update_time']
-        data, total = self._repo.list(**args)
+        data, total = self._repo.get_order_list_with_related(**args)
         return dict(data=data, code=200, total=total)
 
     def get_order_by_id(self, order_id: int) -> Dict[str, Any]:
