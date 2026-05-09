@@ -33,9 +33,31 @@ class ShopStoreStatusUpdateArgSchema(Schema):
 
 # 附近商店查询参数 Schema
 class NearbyStoreQueryArgSchema(Schema):
-    latitude = webargs_fields.Float(required=True, description='纬度')
-    longitude = webargs_fields.Float(required=True, description='经度')
-    distance = webargs_fields.Float(description='距离范围（公里）',)
+    latitude = webargs_fields.Float(
+        required=True,
+        validate=validate.Range(min=-90, max=90, error="纬度范围应在 -90 到 90 之间"),
+        description='纬度'
+    )
+    longitude = webargs_fields.Float(
+        required=True,
+        validate=validate.Range(min=-180, max=180, error="经度范围应在 -180 到 180 之间"),
+        description='经度'
+    )
+    distance = webargs_fields.Float(
+        missing=5.0,
+        validate=validate.Range(min=0.1, max=50.0, error="距离范围应在 0.1 到 50 公里之间"),
+        description='距离范围（公里）'
+    )
+    page = webargs_fields.Int(
+        missing=1,
+        validate=validate.Range(min=1, error="页码最小值为 1"),
+        description='页码'
+    )
+    size = webargs_fields.Int(
+        missing=20,
+        validate=validate.Range(min=1, max=100, error="每页个数范围应在 1 到 100 之间"),
+        description='每页个数'
+    )
 
 
 # 服务模式切换参数 Schema
