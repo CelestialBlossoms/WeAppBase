@@ -6,7 +6,6 @@ services:
       - web-logs:/app/logs
       - ${LOCAL_STORAGE_PATH}:${LOCAL_STORAGE_PATH}
       - /var/www/images:/var/www/images
-      - /opt/dev/apps/backend/mini_code:/app
     env_file:
       - .env
     environment:
@@ -28,7 +27,6 @@ services:
       - web-logs:/app/logs
       - ${LOCAL_STORAGE_PATH}:${LOCAL_STORAGE_PATH}
       - /var/www/images:/var/www/images
-      - /opt/dev/apps/backend/mini_code:/app
     env_file:
       - .env
     environment:
