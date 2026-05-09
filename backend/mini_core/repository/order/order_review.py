@@ -12,6 +12,9 @@ from kit.util.sqla import id_column
 
 __all__ = ['OrderReviewSQLARepository']
 
+PUBLISHED_REVIEW_STATUS = "\u5df2\u53d1\u5e03"
+EMPTY_IMAGE_VALUES = ('', '[]', '[ ]', '[""]', '[null]', 'null')
+
 # 订单评价表
 order_review_table = Table(
     'shop_order_review',
@@ -58,6 +61,13 @@ class OrderReviewSQLARepository(SQLARepository):
     def range_query_params(self) -> Tuple:
         return ('review_time', 'reply_time', 'create_time')
 
+    def _has_image_condition(self):
+        trimmed_images = func.trim(self.model.images)
+        return and_(
+            self.model.images.isnot(None),
+            trimmed_images.notin_(EMPTY_IMAGE_VALUES)
+        )
+
     def get_product_reviews(self, product_id: int, **kwargs) -> Tuple[List[OrderReview], int]:
         """
         获取指定商品的评价列表
@@ -69,7 +79,7 @@ class OrderReviewSQLARepository(SQLARepository):
         返回:
             商品评价列表和总数
         """
-        query_params = {'product_id': product_id, 'status': '已发布', **kwargs}
+        query_params = {**kwargs, 'product_id': product_id, 'status': PUBLISHED_REVIEW_STATUS}
 
         # 处理排序
         ordering = kwargs.get('ordering', ['-is_top', '-review_time'])
@@ -88,7 +98,7 @@ class OrderReviewSQLARepository(SQLARepository):
         返回:
             用户评价列表
         """
-        return self.find_all(user_id=user_id)
+        return self.find_all(user_id=user_id, status=PUBLISHED_REVIEW_STATUS)
 
     def get_order_reviews(self, order_no: str) -> List[OrderReview]:
         """
@@ -100,7 +110,7 @@ class OrderReviewSQLARepository(SQLARepository):
         返回:
             订单评价列表
         """
-        return self.find_all(order_no=order_no)
+        return self.find_all(order_no=order_no, status=PUBLISHED_REVIEW_STATUS)
 
     def get_reviews_with_images(self, product_id: int, **kwargs) -> Tuple[List[OrderReview], int]:
         """
@@ -113,14 +123,12 @@ class OrderReviewSQLARepository(SQLARepository):
         返回:
             带有图片的评价列表和总数
         """
-        query_params = {'product_id': product_id, 'status': '已发布', **kwargs}
+        query_params = {**kwargs, 'product_id': product_id, 'status': PUBLISHED_REVIEW_STATUS}
         conditions = self._get_conditions(**query_params)
 
         # 添加图片非空条件
         query = self.session.query(self.model).filter(*conditions).filter(
-            self.model.images.isnot(None),
-            self.model.images != '[]',
-            self.model.images != ''
+            self._has_image_condition()
         )
 
         # 计算总数
@@ -191,7 +199,7 @@ class OrderReviewSQLARepository(SQLARepository):
             self.session.commit()
         return review
 
-    def get_review_count_by_rating(self, product_id: int) -> Dict[str, int]:
+    def get_review_count_by_rating(self, product_id: int) -> Dict[str, Any]:
         """
         获取商品各评分数量统计
 
@@ -201,45 +209,47 @@ class OrderReviewSQLARepository(SQLARepository):
         返回:
             各评分数量统计字典
         """
-        stats = {}
+        stats = {f'rating_{rating}': 0 for rating in range(1, 6)}
 
-        # 查询评分统计
-        for rating in range(1, 6):
-            count = self.session.query(func.count(self.model.id)).filter(
-                self.model.product_id == product_id,
-                self.model.rating == rating,
-                self.model.status == '已发布'
-            ).scalar() or 0
-            stats[f'rating_{rating}'] = count
+        rating_rows = self.session.query(
+            self.model.rating,
+            func.count(self.model.id)
+        ).filter(
+            self.model.product_id == product_id,
+            self.model.status == PUBLISHED_REVIEW_STATUS
+        ).group_by(self.model.rating).all()
 
-        # 查询总评价数
+        for rating, count in rating_rows:
+            if rating in range(1, 6):
+                stats[f'rating_{rating}'] = count or 0
+
         stats['total'] = sum(stats.values())
-
-        # 计算好评、中评、差评数
         stats['good'] = stats.get('rating_4', 0) + stats.get('rating_5', 0)
         stats['mid'] = stats.get('rating_3', 0)
         stats['bad'] = stats.get('rating_1', 0) + stats.get('rating_2', 0)
-
-        # 计算有图评价数
         stats['with_images'] = self.session.query(func.count(self.model.id)).filter(
             self.model.product_id == product_id,
-            self.model.status == '已发布',
-            self.model.images.isnot(None),
-            self.model.images != '[]',
-            self.model.images != ''
+            self.model.status == PUBLISHED_REVIEW_STATUS,
+            self._has_image_condition()
         ).scalar() or 0
 
-        # 计算平均评分
         if stats['total'] > 0:
-            avg_rating = (
-                             stats.get('rating_1', 0) * 1 +
-                             stats.get('rating_2', 0) * 2 +
-                             stats.get('rating_3', 0) * 3 +
-                             stats.get('rating_4', 0) * 4 +
-                             stats.get('rating_5', 0) * 5
-                         ) / stats['total']
+            avg_rating = sum(
+                stats[f'rating_{rating}'] * rating
+                for rating in range(1, 6)
+            ) / stats['total']
             stats['avg_rating'] = round(avg_rating, 1)
         else:
-            stats['avg_rating'] = 5.0
+            stats['avg_rating'] = 0.0
+
+        stats['rating_detail'] = [
+            {
+                'rating': rating,
+                'count': stats[f'rating_{rating}'],
+                'percentage': round(stats[f'rating_{rating}'] * 100 / stats['total'], 2)
+                if stats['total'] else 0.0
+            }
+            for rating in range(1, 6)
+        ]
 
         return stats
