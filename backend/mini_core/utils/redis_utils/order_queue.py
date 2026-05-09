@@ -2,6 +2,7 @@ import json
 import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from loguru import logger
 
 from backend.extensions import redis
 
@@ -51,7 +52,12 @@ class RedisOrderQueue:
 
             for field in required_fields:
                 if field not in order_data:
-                    print(f"订单数据缺少必要字段: {field}")
+                    logger.warning(
+                        "订单待支付队列入队失败：订单数据缺少必要字段 field={} order_no={} present_fields={}",
+                        field,
+                        order_no,
+                        sorted(order_data.keys()),
+                    )
                     return False
 
             # 确保只存储必要的数据（减少Redis空间使用）
@@ -84,7 +90,13 @@ class RedisOrderQueue:
 
             return True
         except Exception as e:
-            print(f"添加订单到待支付队列出错: {str(e)}")
+            logger.exception(
+                "订单待支付队列入队异常 order_no={} expire_seconds={} redis_key={} error={}",
+                order_no,
+                expire_seconds,
+                f"{cls.ORDER_DATA_KEY_PREFIX}{order_no}",
+                e,
+            )
             return False
 
     @classmethod
@@ -113,7 +125,12 @@ class RedisOrderQueue:
 
             return True
         except Exception as e:
-            print(f"从待支付队列移除订单出错: {str(e)}")
+            logger.exception(
+                "订单待支付队列移除异常 order_no={} redis_key={} error={}",
+                order_no,
+                f"{cls.ORDER_DATA_KEY_PREFIX}{order_no}",
+                e,
+            )
             return False
 
     @classmethod
@@ -139,7 +156,12 @@ class RedisOrderQueue:
                 return json.loads(data)
             return None
         except Exception as e:
-            print(f"获取订单数据出错: {str(e)}")
+            logger.exception(
+                "获取待支付订单缓存数据异常 order_no={} redis_key={} error={}",
+                order_no,
+                f"{cls.ORDER_DATA_KEY_PREFIX}{order_no}",
+                e,
+            )
             return None
 
     @classmethod
@@ -170,7 +192,12 @@ class RedisOrderQueue:
             # RedisHook 已设置 decode_responses=True，所以不需要再解码
             return expiring_orders
         except Exception as e:
-            print(f"获取即将过期订单出错: {str(e)}")
+            logger.exception(
+                "获取即将过期订单异常 within_seconds={} expiry_index={} error={}",
+                within_seconds,
+                cls.ORDER_EXPIRY_INDEX,
+                e,
+            )
             return []
 
     @classmethod
@@ -188,7 +215,11 @@ class RedisOrderQueue:
             return [order.decode() if isinstance(order, bytes) else order
                     for order in pending_orders]
         except Exception as e:
-            print(f"获取所有待支付订单出错: {str(e)}")
+            logger.exception(
+                "获取所有待支付订单异常 pending_key={} error={}",
+                cls.PENDING_ORDERS_KEY,
+                e,
+            )
             return []
 
     @classmethod
@@ -215,16 +246,36 @@ class RedisOrderQueue:
 
             cleaned_count = 0
             for order_no in expired_order_nos:
-                # 处理过期订单（更新数据库中的状态）
-                cls._handle_expired_order(order_no)
+                try:
+                    # 处理过期订单（更新数据库中的状态）
+                    cls._handle_expired_order(order_no)
 
-                # 从Redis中移除
-                cls.remove_pending_order(order_no)
-                cleaned_count += 1
+                    # 从Redis中移除
+                    if cls.remove_pending_order(order_no):
+                        cleaned_count += 1
+                    else:
+                        logger.warning(
+                            "过期订单清理失败：Redis 移除失败 order_no={} expiry_index={}",
+                            order_no,
+                            cls.ORDER_EXPIRY_INDEX,
+                        )
+                except Exception as item_error:
+                    logger.exception(
+                        "过期订单清理失败 order_no={} current_time={} expiry_index={} error={}",
+                        order_no,
+                        current_time,
+                        cls.ORDER_EXPIRY_INDEX,
+                        item_error,
+                    )
 
             return cleaned_count
         except Exception as e:
-            print(f"清理过期订单出错: {str(e)}")
+            logger.exception(
+                "扫描过期订单失败 current_time={} expiry_index={} error={}",
+                int(time.time()),
+                cls.ORDER_EXPIRY_INDEX,
+                e,
+            )
             return 0
 
     @classmethod
@@ -258,7 +309,7 @@ class RedisOrderQueue:
                         'operator': 'system',
                     })
         except Exception as e:
-            print(f"处理过期订单 {order_no} 出错: {str(e)}")
+            logger.exception("处理过期订单异常 order_no={} error={}", order_no, e)
 
     @classmethod
     def get_remaining_seconds(cls, order_no: str) -> Optional[int]:
@@ -282,5 +333,10 @@ class RedisOrderQueue:
             remaining = int(expiry_time - time.time())
             return max(0, remaining)  # 不返回负值
         except Exception as e:
-            print(f"获取订单剩余时间出错: {str(e)}")
+            logger.exception(
+                "获取订单剩余支付时间异常 order_no={} expiry_index={} error={}",
+                order_no,
+                cls.ORDER_EXPIRY_INDEX,
+                e,
+            )
             return None

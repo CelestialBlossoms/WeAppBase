@@ -4,6 +4,7 @@ import json
 import datetime as dt
 from typing import Dict, Any, Optional
 from flask import request
+from loguru import logger
 
 from backend.extensions import redis
 
@@ -26,7 +27,10 @@ class LogQueue:
         """
         # 验证日志结构是否正确
         if 'op_type' not in log_dict or 'data' not in log_dict:
-            print("日志结构错误: 缺少 op_type 或 data 字段")
+            logger.warning(
+                "日志队列入队失败：日志结构缺少必要字段 keys={}",
+                sorted(log_dict.keys()),
+            )
             return False
 
         # 确保日期时间对象正确序列化
@@ -35,10 +39,22 @@ class LogQueue:
         try:
             # 使用Redis客户端的push_data方法将日志推送到队列
             redis.push_data(cls.LOG_QUEUE_KEY, prepared_data)
-            print("推送日志成功")
+            logger.debug(
+                "日志队列入队成功 queue={} op_type={}",
+                cls.LOG_QUEUE_KEY,
+                prepared_data.get('op_type'),
+            )
             return True
         except Exception as e:
-            print(f"推送日志到队列失败: {str(e)}")
+            logger.exception(
+                "日志队列入队异常 queue={} op_type={} data_keys={} error={}",
+                cls.LOG_QUEUE_KEY,
+                prepared_data.get('op_type') if isinstance(prepared_data, dict) else None,
+                sorted(prepared_data.get('data', {}).keys())
+                if isinstance(prepared_data, dict) and isinstance(prepared_data.get('data'), dict)
+                else None,
+                e,
+            )
             return False
 
     @classmethod
