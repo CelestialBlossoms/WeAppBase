@@ -14,6 +14,8 @@ from kit.schema.field import DateTimeDelimitedList
 
 # ShopUser Schemas
 ShopUserSchema = class_schema(ShopUser, base_schema=EntitySchema)
+ShopUserSchema.__name__ = 'MiniCoreShopUserSchema'
+ShopUserSchema.__qualname__ = 'MiniCoreShopUserSchema'
 
 
 class ShopUserQueryArgSchema(ListQueryArgSchema):
@@ -150,6 +152,8 @@ class ShopUserStatusSchema(ArgSchema):
 
 # ShopUserAddress Schemas
 ShopUserAddressSchema = class_schema(ShopUserAddress, base_schema=EntitySchema)
+ShopUserAddressSchema.__name__ = 'MiniCoreShopUserAddressSchema'
+ShopUserAddressSchema.__qualname__ = 'MiniCoreShopUserAddressSchema'
 
 
 class ShopUserAddressQueryArgSchema(ListQueryArgSchema):

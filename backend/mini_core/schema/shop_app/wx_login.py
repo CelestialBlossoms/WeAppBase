@@ -9,6 +9,8 @@ from kit.schema.base import (
 )
 
 ShopUserSchema = class_schema(ShopUser, base_schema=EntitySchema)
+ShopUserSchema.__name__ = 'WxLoginShopUserSchema'
+ShopUserSchema.__qualname__ = 'WxLoginShopUserSchema'
 
 
 class WechatLoginSchema(ArgSchema):

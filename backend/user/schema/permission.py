@@ -12,6 +12,8 @@ from kit.schema.base import (
 from kit.schema.field import RequiredStr
 
 PermissionSchema = class_schema(Permission, base_schema=EntitySchema)
+PermissionSchema.__name__ = 'UserPermissionSchema'
+PermissionSchema.__qualname__ = 'UserPermissionSchema'
 
 
 class PermissionQueryArgSchema(ListQueryArgSchema):

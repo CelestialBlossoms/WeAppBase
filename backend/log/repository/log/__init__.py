@@ -1,6 +1,3 @@
-from backend.extensions import db
+from kit.repository.provider import repository
 
-from .sqla import LogSQLARepository
-
-# TODO replace this with DI
-log_sqla_repo = LogSQLARepository(db.session)
+log_sqla_repo = repository('backend.log.repository.log.sqla:LogSQLARepository', 'log_sqla_repo')

@@ -1,6 +1,3 @@
-from backend.extensions import db
+from kit.repository.provider import repository
 
-from .sqla import AlarmSQLARepository
-
-# TODO replace this with DI
-alarm_sqla_repo = AlarmSQLARepository(db.session)
+alarm_sqla_repo = repository('backend.alarm.repository.alarm.sqla:AlarmSQLARepository', 'alarm_sqla_repo')

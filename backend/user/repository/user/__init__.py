@@ -1,6 +1,3 @@
-from backend.extensions import db
+from kit.repository.provider import repository
 
-from .sqla import UserSQLARepository
-
-# TODO replace this with DI
-user_sqla_repo = UserSQLARepository(db.session)
+user_sqla_repo = repository('backend.user.repository.user.sqla:UserSQLARepository', 'user_sqla_repo')

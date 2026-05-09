@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 # author zyy
-from backend.extensions import db
 # from .mock import LiMockRepository
-from .sqla import LiSQLARepository
+from kit.repository.provider import repository
 
-# TODO replace this with DI
-li_mock_repo = LiSQLARepository(db.session)
+li_mock_repo = repository('backend.license_management.repository.li.sqla:LiSQLARepository', 'li_mock_repo')

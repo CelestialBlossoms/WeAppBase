@@ -1,6 +1,3 @@
-from backend.extensions import db
+from kit.repository.provider import repository
 
-from .sqla import RoleSQLARepository
-
-# TODO replace this with DI
-role_sqla_repo = RoleSQLARepository(db.session)
+role_sqla_repo = repository('backend.role.repository.role.sqla:RoleSQLARepository', 'role_sqla_repo')

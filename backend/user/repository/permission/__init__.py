@@ -1,7 +1,3 @@
-# __init__.py
-from backend.extensions import db
+from kit.repository.provider import repository
 
-from .sqla import PermissionSQLARepository
-
-# TODO replace this with DI
-permission_sqla_repo = PermissionSQLARepository(db.session)
+permission_sqla_repo = repository('backend.user.repository.permission.sqla:PermissionSQLARepository', 'permission_sqla_repo')
