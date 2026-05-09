@@ -8,6 +8,7 @@ from flask_jwt_extended import (
     get_current_user,
     get_jwt_identity,
 )
+from loguru import logger
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from backend.extensions import casbin_enforcer, db
@@ -22,6 +23,14 @@ from kit.service.base import CRUDService
 from kit.util import casbin as casbin_util
 
 __all__ = ['UserService']
+
+
+DUMMY_PASSWORD_HASH = generate_password_hash('invalid-password')
+PASSWORD_HASH_PREFIXES = (
+    'pbkdf2:',
+    'scrypt:',
+    'argon2:',
+)
 
 
 class UserService(CRUDService[User]):
@@ -92,10 +101,17 @@ class UserService(CRUDService[User]):
 
         user = self.repo.get_by_username(username)
         if not user:
-            raise ServiceBadRequest(UserMessage.USER_NOT_EXIST)
-
-        if not self._verify_password(user.password, password):
+            self._verify_password(DUMMY_PASSWORD_HASH, password)
             raise ServiceBadRequest(UserMessage.USER_PASSWORD_ERROR)
+
+        password_ok, should_upgrade_password = self._verify_password(user.password, password)
+        if not password_ok:
+            raise ServiceBadRequest(UserMessage.USER_PASSWORD_ERROR)
+
+        if should_upgrade_password:
+            user.password = generate_password_hash(password)
+            logger.warning("已将历史明文密码升级为哈希存储 user_id={} username={}", user.id, user.username)
+
         access_token = create_access_token(user.id, fresh=True)
         refresh_token = create_refresh_token(user.id)
         user.last_login_time = dt.datetime.now()
@@ -133,8 +149,22 @@ class UserService(CRUDService[User]):
         return user
 
     @classmethod
-    def _verify_password(cls, pw_hash: str, password: str) -> bool:
-        return check_password_hash(pw_hash, password)
+    def _verify_password(cls, stored_password: str, password: str) -> tuple:
+        if not stored_password:
+            return False, False
+
+        if cls._is_supported_password_hash(stored_password):
+            try:
+                return check_password_hash(stored_password, password), False
+            except ValueError:
+                logger.warning("密码哈希格式无法校验")
+                return False, False
+
+        return stored_password == password, stored_password == password
+
+    @classmethod
+    def _is_supported_password_hash(cls, stored_password: str) -> bool:
+        return stored_password.startswith(PASSWORD_HASH_PREFIXES)
 
     def is_li_ok(self) -> str:
         mac = GetMacAddress().mac()
