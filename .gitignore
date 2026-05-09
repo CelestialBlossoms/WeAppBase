@@ -150,5 +150,7 @@ logs/*
 
 # migrations
 migrations/*
+!migrations/
+!migrations/**
 
 wxcert
